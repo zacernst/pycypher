@@ -626,7 +626,7 @@ def goldberg_with_trigger():
     goldberg = load_goldberg_config(ingest_file)
 
     @goldberg.cypher_trigger(
-        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) RETURN s.side_length AS side_length"
+        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) WITH s.side_length AS side_length RETURN side_length"
     )
     def compute_area(side_length) -> VariableAttribute["s", "area"]:  # type: ignore
         return side_length**2
@@ -640,13 +640,13 @@ def goldberg_with_two_triggers():
     goldberg = load_goldberg_config(ingest_file)
 
     @goldberg.cypher_trigger(
-        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) RETURN s.side_length AS side_length"
+        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) WITH s.side_length AS side_length RETURN side_length"
     )
     def compute_area(side_length) -> VariableAttribute["s", "area"]:  # type: ignore
         return side_length**2
 
     @goldberg.cypher_trigger(
-        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) RETURN s.area AS square_area"
+        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) WITH s.area AS square_area RETURN square_area"
     )
     def compute_bigness(square_area) -> VariableAttribute["s", "big"]:  # type: ignore
         return square_area > 10
@@ -660,19 +660,19 @@ def goldberg_with_three_triggers():
     goldberg = load_goldberg_config(ingest_file)
 
     @goldberg.cypher_trigger(
-        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) RETURN s.side_length AS side_length"
+        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) WITH s.side_length AS side_length RETURN side_length"
     )
     def compute_area(side_length) -> VariableAttribute["s", "area"]:  # type: ignore
         return side_length**2
 
     @goldberg.cypher_trigger(
-        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) RETURN s.area AS square_area"
+        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) WITH s.area AS square_area RETURN square_area"
     )
     def compute_bigness(square_area) -> VariableAttribute["s", "big"]:  # type: ignore
         return square_area > 10
 
     @goldberg.cypher_trigger(
-        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) RETURN s.big AS bigness"
+        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) WITH s.big AS bigness RETURN bigness"
     )
     def compute_smallness(bigness) -> VariableAttribute["s", "small"]:  # type: ignore
         return not bigness
@@ -704,10 +704,12 @@ def goldberg_with_aggregation_fixture():
         return not bigness
 
     @goldberg.cypher_trigger(
-        "MATCH (s:Square)-[r:contains]->(c:Circle) WITH s.name AS square_name, s.length AS square_length, COLLECT(c.radius) AS radii RETURN square_name, square_length, radii"
+        "MATCH (s:Square)-[r:contains]->(c:Circle) "
+        "WITH s.name AS square_name, s.length AS square_length, COLLECT(c.radius) AS radii "
+        "RETURN square_length, radii"
     )  # Should be an alias, not an ObjectAttributeLookup
     def aggregation_of_radii(
-        square_name, radii
+        square_length, radii
     ) -> VariableAttribute["s", "num_circles"]:  # type: ignore
         return len(radii)
 

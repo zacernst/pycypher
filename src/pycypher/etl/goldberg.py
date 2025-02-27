@@ -6,8 +6,10 @@ import datetime
 import functools
 import inspect
 import queue
+import sys
 import threading
 import time
+import traceback
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from hashlib import md5
@@ -16,6 +18,7 @@ from typing import Any, Dict, Generator, Iterable, List, Optional, Type
 from rich.console import Console
 from rich.table import Table
 
+from pycypher.core.node_classes import AliasedName
 from pycypher.etl.data_source import DataSource
 from pycypher.etl.fact import (
     AtomicFact,
@@ -58,7 +61,9 @@ class QueueProcessor(ABC):  # pylint: disable=too-few-public-methods,too-many-in
         status_queue: Optional[queue.Queue] = None,
     ) -> None:
         self.goldberg = goldberg
-        self.processing_thread = threading.Thread(target=self.process_queue)
+        self.processing_thread = threading.Thread(
+            target=self.process_queue, name=self.__class__.__name__
+        )
         self.started = False
         self.started_at = None
         self.finished = False
@@ -79,9 +84,19 @@ class QueueProcessor(ABC):  # pylint: disable=too-few-public-methods,too-many-in
         for item in self.incoming_queue.yield_items():
             self.received_counter += 1
             try:
-                out = self.process_item_from_queue(item)
+                out = self._process_item_from_queue(item)
             except Exception as e:  # pylint: disable=broad-except
-                LOGGER.error("Error processing item %s: %s", item, e)
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                formatted_traceback = traceback.format_exception(
+                    exc_type, exc_value, exc_traceback
+                )
+                formatted_traceback = "\n".join(
+                    [line.strip() for line in formatted_traceback]
+                )
+                error_msg = f"in thread: {threading.current_thread().name}\n"
+                error_msg += f"Error processing item {item}: {e}]\n"
+                error_msg += f"Traceback: {formatted_traceback}]\n"
+                LOGGER.error(error_msg)
                 self.status_queue.put(e)
                 continue
             if not out:
@@ -97,6 +112,10 @@ class QueueProcessor(ABC):  # pylint: disable=too-few-public-methods,too-many-in
     @abstractmethod
     def process_item_from_queue(self, item: Any) -> Any:
         """Process an item from the queue."""
+
+    def _process_item_from_queue(self, item: Any) -> Any:
+        """Wrap the process call in case we want some logging."""
+        return self.process_item_from_queue(item)
 
 
 class RawDataProcessor(QueueProcessor):
@@ -173,6 +192,56 @@ class TriggeredLookupProcessor(QueueProcessor):  # pylint: disable=too-few-publi
         self.started = True
         self.started_at = datetime.datetime.now()
         self.received_counter += 1
+        variable_to_set = sub_trigger_obj.trigger.variable_set
+        # match_clause = (
+        #     sub_trigger_obj.trigger.cypher.parse_tree.cypher.match_clause
+        # )
+        # # match_clause.constraints.append(specific_object_constraint)
+        fact_collection = self.goldberg.fact_collection
+
+        return_clause = (
+            sub_trigger_obj.trigger.cypher.parse_tree.cypher.return_clause
+        )
+        solutions = return_clause._evaluate(fact_collection)  # pylint: disable=protected-access
+
+        for solution in solutions:
+            splat = [
+                solution.get(alias.name)
+                for alias in return_clause.projection.lookups
+            ]
+            if any(isinstance(arg, NullResult) for arg in splat):
+                LOGGER.debug("NullResult found in splat %s", splat)
+                continue
+            # Prevent call from happening if NullResult is present
+            computed_value = sub_trigger_obj.trigger.function(*splat)
+            sub_trigger_obj.trigger.call_counter += 1
+            target_attribute = sub_trigger_obj.trigger.attribute_set
+            # variable no longer present in solution because of alias renaming
+            # import pdb; pdb.set_trace()
+            # node_id = alias[name]
+            node_id = solution["__with_clause_projection__"][
+                "__match_solution__"
+            ][variable_to_set]
+            computed_fact = FactNodeHasAttributeWithValue(
+                node_id=node_id,
+                attribute=target_attribute,
+                value=computed_value,
+            )
+            LOGGER.debug(">>>>>>> Computed fact: %s", computed_fact)
+            self.goldberg.fact_generated_queue.put(computed_fact)
+        self.finished = True
+        self.finished_at = datetime.datetime.now()
+
+    def process_item_from_queue_bak(self, item: SubTriggerPair) -> List[Any]:
+        """Process new facts from the check_fact_against_triggers_queue."""
+        sub_trigger_obj = item
+        if isinstance(item, str):
+            import pdb
+
+            pdb.set_trace()
+        self.started = True
+        self.started_at = datetime.datetime.now()
+        self.received_counter += 1
         variable = tuple(sub_trigger_obj.sub)[0]
         node_id = sub_trigger_obj.sub[variable]  # pylint: disable=unused-variable
         match_clause = (
@@ -189,26 +258,34 @@ class TriggeredLookupProcessor(QueueProcessor):  # pylint: disable=too-few-publi
         for solution in solutions:
             splat = []
             for alias in aliases:
-                if not hasattr(alias, "reference"):
+                try:
+                    if hasattr(alias, "reference") and hasattr(
+                        alias.reference, "aggregation"
+                    ):  # pylint: disable=no-else-raise
+                        # TODO: Implement aggregation in RETURN statement
+                        raise NotImplementedError(
+                            "Aggregation in RETURN not yet implemented"
+                        )
+                    elif isinstance(alias, AliasedName):
+                        variable = alias.name
+                        node_id = solution[variable]
+                        attribute_value_query = QueryValueOfNodeAttribute(
+                            node_id=node_id,
+                            attribute=alias.name,
+                        )
+                    else:
+                        variable = alias.reference.object  # HERE
+                        node_id = solution[variable]
+                        attribute = alias.reference.attribute
+                        attribute_value_query = QueryValueOfNodeAttribute(
+                            node_id=node_id,
+                            attribute=attribute,
+                        )
+                except:
                     import pdb
 
                     pdb.set_trace()
-                if hasattr(alias.reference, "aggregation"):  # pylint: disable=no-else-raise
-                    # TODO: Implement aggregation in RETURN statement
-                    raise NotImplementedError(
-                        "Aggregation in RETURN not yet implemented"
-                    )
-                else:
-                    variable = alias.reference.object  # HERE
-                    node_id = solution[variable]
-                    attribute = alias.reference.attribute
-                    attribute_value_query = QueryValueOfNodeAttribute(
-                        node_id=node_id,
-                        attribute=attribute,
-                    )
-                    attribute_value = fact_collection.query(
-                        attribute_value_query
-                    )
+                attribute_value = fact_collection.query(attribute_value_query)
                 splat.append(attribute_value)
             if any(isinstance(arg, NullResult) for arg in splat):
                 continue
@@ -298,7 +375,7 @@ class Goldberg:  # pylint: disable=too-many-instance-attributes
         # Instantiate threads
         if self.run_monitor:
             self.monitor_thread = threading.Thread(
-                target=self.monitor, daemon=True
+                target=self.monitor, daemon=True, name="MonitorThread"
             )
 
     def __call__(self, block: bool = True):
@@ -525,6 +602,10 @@ class Goldberg:  # pylint: disable=too-many-instance-attributes
         def decorator(func):
             @functools.wraps
             def wrapper(*args, **kwargs):
+                # if any(isinstance(arg, NullResult) for arg in args):
+                #     LOGGER.debug("NullResult found in args")
+                #     return NullResult(None)  # Add something here
+
                 result = func(*args, **kwargs)
                 return result
 
@@ -555,6 +636,7 @@ class Goldberg:  # pylint: disable=too-many-instance-attributes
                 variable_set=variable_name,
                 attribute_set=attribute_name,
                 parameter_names=parameter_names,
+                goldberg=self,
             )
 
             # Check that parameters are in the Return statement of the Cypher string
