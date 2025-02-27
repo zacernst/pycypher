@@ -686,19 +686,19 @@ def goldberg_with_aggregation_fixture():
     goldberg = load_goldberg_config(ingest_file)
 
     @goldberg.cypher_trigger(
-        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) RETURN s.side_length AS side_length"
+        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) WITH s.side_length AS side_length RETURN side_length"
     )
     def compute_area(side_length) -> VariableAttribute["s", "area"]:  # type: ignore
         return side_length**2
 
     @goldberg.cypher_trigger(
-        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) RETURN s.area AS square_area"
+        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) WITH s.area AS square_area RETURN square_area"
     )
     def compute_bigness(square_area) -> VariableAttribute["s", "big"]:  # type: ignore
         return square_area > 10
 
     @goldberg.cypher_trigger(
-        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) RETURN s.big AS bigness"
+        "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) WITH s.big AS bigness RETURN bigness"
     )
     def compute_smallness(bigness) -> VariableAttribute["s", "small"]:  # type: ignore
         return not bigness

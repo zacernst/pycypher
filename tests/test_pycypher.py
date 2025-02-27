@@ -21,8 +21,8 @@ from fixtures import fact_collection_0  # pylint: disable=unused-import
 from fixtures import fact_collection_1  # pylint: disable=unused-import
 from fixtures import fact_collection_2  # pylint: disable=unused-import
 from fixtures import fact_collection_3  # pylint: disable=unused-import
+from fixtures import fact_collection_4  # pylint: disable=unused-import
 from fixtures import (
-    fact_collection_4,  # pylint: disable=unused-import
     fact_collection_5,
     fact_collection_6,
     fact_collection_7,
@@ -4693,7 +4693,7 @@ def test_test_gather_variables_on_return_with_alias():
     ]
 
 
-@pytest.mark.xfail
+# @pytest.mark.xfail
 def test_aggregation_trigger_in_goldberg(goldberg_with_aggregation_fixture):
     goldberg_with_aggregation_fixture.start_threads()
     goldberg_with_aggregation_fixture.block_until_finished()
