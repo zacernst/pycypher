@@ -1,4 +1,173 @@
-"""Reads the configuration file into a Pydantic model."""
+"""
+Configuration Module (configuration.py)
+======================================
+
+The ``configuration.py`` module handles the loading and parsing of configuration files for the `pycypher` system. These configuration files, written in YAML, define how `pycypher` should be set up, including the data sources to ingest and how to map that raw data to facts.
+
+Writing a Configuration File
+----------------------------
+
+A `pycypher` configuration file is a YAML file that specifies the settings for your data pipeline. Here's a breakdown of the structure and available options:
+
+Top-Level Structure
+-------------------
+
+The root of the configuration file is a dictionary with the following keys:
+
+*   ``fact_collection`` (Optional[str]):
+    *   **Purpose:** Specifies the name of a `FactCollection` to use.
+    *   **Type:** String.
+    *   **Default:** None.
+*   ``run_monitor`` (Optional[bool]):
+    *   **Purpose:** Indicates whether the `Goldberg` monitor thread should be run.
+    *   **Type:** Boolean.
+    *   **Default:** True.
+*   ``fact_collection_class`` (Optional[str]):
+    *   **Purpose:** Specifies a specific class to instantiate for the `FactCollection`.
+    *   **Type:** String.
+    *   **Default:** None.
+*   ``data_sources`` (Optional[List[Dict]]):
+    *   **Purpose:** A list of data source configurations.
+    *   **Type:** List of dictionaries.
+    *   **Default:** An empty list.
+*   ``logging_level`` (Optional[str]):
+    *   **Purpose:** Specifies the level of logging to use for the `Goldberg` object.
+    * **Type**: String.
+    * **Default**: `INFO`.
+
+Data Source Configuration
+-------------------------
+
+Each data source in the ``data_sources`` list is defined as a dictionary with these keys:
+
+*   ``name`` (Optional[str]):
+    *   **Purpose:** A name for the data source (for identification).
+    *   **Type:** String.
+    *   **Default:** None.
+*   ``uri`` (Optional[str]):
+    *   **Purpose:** The URI of the data source (e.g., a file path, a database connection string).
+    *   **Type:** String.
+    *   **Default:** None.
+    * **String Formatting**: This field supports string formatting, and provides the `CWD` and `SRC_BASE_DIR` variables.
+*   ``mappings`` (List[Dict]):
+    *   **Purpose:** A list of data source mapping configurations.
+    *   **Type:** List of dictionaries.
+    * **Default**: An empty list.
+* ``data_types`` (Optional[Dict[str,str]]):
+    * **Purpose**: A mapping from column name, to the desired type for that column.
+    * **Type**: Dictionary.
+    * **Default**: An empty dict.
+    * **Valid types**: `PositiveInteger`, `PositiveFloat`, `String`, `Boolean`, `NegativeInteger`, `NegativeFloat`, `Integer`, `Float`, `NonZeroInteger`, `NonZeroFloat`, `NonEmptyString`, `Date`, `DateTime`
+
+Data Source Mapping Configuration
+---------------------------------
+
+Each data source mapping in the ``mappings`` list is defined as a dictionary with at least one of these keys:
+
+*   ``attribute_key`` (Optional[str]):
+    *   **Purpose:** The key in the raw data that contains the attribute value for a node.
+    *   **Type:** String.
+    *   **Default:** None.
+*   ``identifier_key`` (Optional[str]):
+    *   **Purpose:** The key in the raw data that contains the node ID.
+    *   **Type:** String.
+    *   **Default:** None.
+*   ``attribute`` (Optional[str]):
+    *   **Purpose:** The name of the attribute to create.
+    *   **Type:** String.
+    *   **Default:** None.
+*   ``label`` (Optional[str]):
+    *   **Purpose:** The label to assign to a node.
+    *   **Type:** String.
+    *   **Default:** None.
+*   ``source_key`` (Optional[str]):
+    *   **Purpose:** The key in the raw data that contains the source node ID for a relationship.
+    *   **Type:** String.
+    *   **Default:** None.
+*   ``target_key`` (Optional[str]):
+    *   **Purpose:** The key in the raw data that contains the target node ID for a relationship.
+    *   **Type:** String.
+    *   **Default:** None.
+* ``source_label`` (Optional[str]):
+    * **Purpose**: The label to assign to the source node.
+    * **Type**: String.
+    * **Default**: None.
+* ``target_label`` (Optional[str]):
+    * **Purpose**: The label to assign to the target node.
+    * **Type**: String.
+    * **Default**: None.
+*   ``relationship`` (Optional[str]):
+    *   **Purpose:** The label to assign to a relationship.
+    *   **Type:** String.
+    *   **Default:** None.
+
+Example Configuration
+---------------------
+
+.. code-block:: yaml
+
+    fact_collection: my_fact_collection
+    run_monitor: true
+    logging_level: DEBUG
+    data_sources:
+        - name: people_data
+          uri: file://{CWD}/data/people.csv
+          data_types:
+            name: String
+            age: Integer
+          mappings:
+            - identifier_key: person_id
+              label: Person
+            - identifier_key: person_id
+              attribute_key: name
+              attribute: name
+            - identifier_key: person_id
+              attribute_key: age
+              attribute: age
+        - name: movie_data
+          uri: file://{CWD}/data/movies.parquet
+          data_types:
+            title: NonEmptyString
+            year: PositiveInteger
+          mappings:
+            - identifier_key: movie_id
+              label: Movie
+            - identifier_key: movie_id
+              attribute_key: title
+              attribute: title
+            - identifier_key: movie_id
+              attribute_key: year
+              attribute: year
+        - name: know_data
+          uri: file://{CWD}/data/knows.csv
+          mappings:
+              - source_key: person1
+                target_key: person2
+                relationship: KNOWS
+                source_label: Person
+                target_label: Person
+
+Loading the Configuration
+-------------------------
+
+The ``load_goldberg_config(path: str)`` function loads and parses a YAML configuration file from the specified path and returns a configured ``Goldberg`` object.
+
+.. code-block:: python
+
+    from pycypher.util.configuration import load_goldberg_config
+
+    goldberg = load_goldberg_config("path/to/your/config.yaml")
+    # Now you can use the 'goldberg' object to run the pipeline.
+
+Key Classes
+-----------
+
+*   ``GoldbergConfig``: Pydantic model for the top-level configuration structure.
+*   ``DataSourceConfig``: Pydantic model for a single data source.
+* ``DataSchema``: Pydantic model for the schema of a data source.
+*   ``DataSourceMappingConfig``: Pydantic model for a single data source mapping.
+
+"""
 
 from __future__ import annotations
 

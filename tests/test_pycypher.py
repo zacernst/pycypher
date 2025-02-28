@@ -4694,18 +4694,44 @@ def test_test_gather_variables_on_return_with_alias():
 
 
 # @pytest.mark.xfail
-def test_aggregation_trigger_in_goldberg(goldberg_with_aggregation_fixture):
+def test_aggregation_trigger_in_goldberg_inserts_facts(
+    goldberg_with_aggregation_fixture,
+):
     goldberg_with_aggregation_fixture.start_threads()
     goldberg_with_aggregation_fixture.block_until_finished()
+
+    assert (
+        FactNodeHasAttributeWithValue(
+            node_id="Square::squarename1", attribute="num_circles", value=3
+        )
+        in goldberg_with_aggregation_fixture.fact_collection
+    )
+
+    assert (
+        FactNodeHasAttributeWithValue(
+            node_id="Square::squarename2", attribute="num_circles", value=3
+        )
+        in goldberg_with_aggregation_fixture.fact_collection
+    )
+
+    assert (
+        FactNodeHasAttributeWithValue(
+            node_id="Square::squarename3", attribute="num_circles", value=1
+        )
+        in goldberg_with_aggregation_fixture.fact_collection
+    )
 
 
 # @pytest.mark.skip  # Not done yet
 def test_with_clause_records_variables(fact_collection_squares_circles):
-    cypher = "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) WITH s.side_length AS side_length RETURN side_length"
+    cypher = "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) WITH s.length AS length RETURN length"
     parser = CypherParser(cypher)
-    parser.parse_tree.cypher.match_clause.with_clause._evaluate(
+    out = parser.parse_tree.cypher.match_clause.with_clause._evaluate(
         fact_collection_squares_circles
     )
-    # import pdb; pdb.set_trace()
-    # parser.parse_tree.get_with_clause().gather_variables()
-    # assert parser.parse_tree.get_with_clause().variables == ["one", "two"]
+    expected = [
+        {"length": Literal(4), "__match_solution__": {"s": "square_3"}},
+        {"length": Literal(3), "__match_solution__": {"s": "square_2"}},
+        {"length": Literal(2), "__match_solution__": {"s": "square_1"}},
+    ]
+    assert out == expected

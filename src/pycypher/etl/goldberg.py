@@ -1,4 +1,108 @@
-"""Main class for managing ETL flow."""
+"""
+Goldberg Class Documentation
+============================
+
+The ``Goldberg`` class is the central orchestrator within the ``pycypher`` library. It manages the entire data processing pipeline, from ingesting raw data to executing triggers based on facts and constraints.
+
+Overall Purpose
+---------------
+
+The ``Goldberg`` class serves as the "brain" of the ``pycypher`` system. Its primary responsibilities include:
+
+1.  **Data Ingestion Management:** Handles the intake of raw data from various ``DataSource`` objects.
+2.  **Fact Generation Orchestration:** Coordinates the transformation of raw data into ``AtomicFact`` objects.
+3.  **Fact Storage and Retrieval:** Houses the ``FactCollection``, which is the central repository for storing and querying facts.
+4.  **Trigger Management:** Registers and manages ``CypherTrigger`` objects, which define reactive behaviors.
+5.  **Constraint Satisfaction:** Monitors facts and triggers, ensuring that constraints defined by the triggers are met.
+6.  **Trigger Execution:** Executes the associated function of a trigger when its constraints are satisfied.
+7.  **Pipeline Orchestration:** Manages the flow of data through multiple processing queues and threads.
+8.  **Monitoring:** Tracks the status of queues, threads, and data sources, providing performance insights.
+
+Key Components
+--------------
+
+1.  **Data Sources (``data_sources``)**
+
+    *   ``Goldberg`` manages a list of ``DataSource`` objects.
+    *   ``DataSource`` objects are responsible for reading raw data from external sources (e.g., CSV files, databases).
+    *   ``Goldberg`` starts each ``DataSource``'s loading thread.
+    *   When a data source is finished, it puts an ``EndOfData`` object on the ``raw_input_queue``.
+
+2.  **Fact Collection (``fact_collection``)**
+
+    *   ``Goldberg`` contains a ``FactCollection`` instance.
+    *   The ``FactCollection`` stores all the generated ``AtomicFact`` objects.
+    *   It provides methods for querying and retrieving facts.
+    *   It also maintains an inventory of all node labels and their attributes.
+
+3.  **Triggers (``trigger_dict``)**
+
+    *   ``Goldberg`` uses a dictionary (``trigger_dict``) to store ``CypherTrigger`` objects.
+    *   Triggers are defined using the ``@goldberg.cypher_trigger`` decorator.
+    *   Each trigger specifies:
+
+        *   A Cypher query that defines the constraints.
+        *   A Python function to execute when the constraints are met.
+        *   The variable it is monitoring, and the attribute it is setting.
+
+4.  **Queues and Queue Processors**
+
+    *   ``Goldberg`` uses queues to manage data and facts:
+
+        *   ``raw_input_queue``: Receives raw data rows from data sources.
+        *   ``fact_generated_queue``: Receives new ``AtomicFact`` objects.
+        *   ``check_fact_against_triggers_queue``: Receives facts to check against triggers.
+        *   ``triggered_lookup_processor_queue``: Receives information about which triggers need to be executed.
+
+    *   It manages queue processors that operate on these queues:
+
+        *   ``RawDataProcessor``: Converts raw data rows into facts and sends them to ``fact_generated_queue``.
+        *   ``FactGeneratedQueueProcessor``: Inserts new facts into the ``FactCollection``.
+        *   ``CheckFactAgainstTriggersQueueProcessor``: Checks new facts against trigger constraints and puts the matching trigger/sub information on the ``triggered_lookup_processor_queue``.
+        *   ``TriggeredLookupProcessor``: Executes the trigger and generates new facts as a result.
+
+5. **Threads**
+    * `Goldberg` is responsible for starting all the threads.
+    * `Goldberg` contains a monitor thread.
+
+6.  **Monitoring (``monitor``, ``_monitor``)**
+
+    *   ``Goldberg`` has a monitoring system that tracks the status of queues, threads, and data sources.
+    *   It provides performance insights (e.g., message rates, queue sizes).
+    *   It also detects errors and halts the process if an exception occurs.
+
+Workflow Overview
+-----------------
+
+1.  **Data Ingestion:** Data sources load data and send it to the ``raw_input_queue``.
+2.  **Raw Data Processing:** The ``RawDataProcessor`` reads data from ``raw_input_queue``, converts it into facts, and sends them to ``fact_generated_queue``.
+3.  **Fact Storage:** The ``FactGeneratedQueueProcessor`` adds the facts to the ``fact_collection`` and sends them to the ``check_fact_against_triggers_queue``.
+4.  **Constraint Checking:** The ``CheckFactAgainstTriggersQueueProcessor`` reads facts from ``check_fact_against_triggers_queue``, checks them against trigger constraints, and if there's a match, puts the trigger and sub information on the ``triggered_lookup_processor_queue``.
+5.  **Triggered Lookup Processor**: The ``TriggeredLookupProcessor`` reads the trigger information and sub information, looks up information about the nodes in the sub information, and runs the trigger's function on that information.
+6.  **Trigger Execution:** If a trigger's constraints are satisfied, its function is executed, potentially generating new facts.
+7.  **Repeat:** New facts may satisfy other triggers, leading to a chain reaction.
+8. **Monitoring**: `Goldberg`'s monitor thread keeps track of all of this, and prints out information on the queues, and threads.
+
+Key Methods
+-----------
+
+*   ``__init__``: Initializes the ``Goldberg`` object, creating queues, processors, and other components.
+*   ``__call__``: Starts the threads, and optionally blocks until they are finished.
+*   ``start_threads``: Starts all threads in the pipeline.
+*   ``halt``: Safely stops all threads.
+*   ``block_until_finished``: Blocks until all threads have finished. Re-raises exceptions from the threads.
+*   ``monitor``, ``_monitor``: Monitors system status and prints information.
+*   ``attach_data_source``: Adds a ``DataSource`` to the pipeline.
+*   ``cypher_trigger``: Decorator for registering triggers.
+*   ``rows_by_node_label``: passes this call to the fact collection.
+*   ``node_label_attribute_inventory``: passes this call to the fact collection.
+*   ``__iadd__``: Enables the ``+=`` operator to add either a ``FactCollection`` or a ``DataSource``.
+
+Summary
+-------
+
+The ``Goldberg`` class is the central hub of the ``pycypher`` library. It orchestrates data processing, managing data ingestion, fact generation, fact storage, trigger management, and constraint satisfaction. It handles reactive behaviors within a graph-like data structure.
+"""
 
 from __future__ import annotations
 
@@ -18,7 +122,7 @@ from typing import Any, Dict, Generator, Iterable, List, Optional, Type
 from rich.console import Console
 from rich.table import Table
 
-from pycypher.core.node_classes import AliasedName
+from pycypher.core.node_classes import AliasedName, Collection
 from pycypher.etl.data_source import DataSource
 from pycypher.etl.fact import (
     AtomicFact,
@@ -204,9 +308,14 @@ class TriggeredLookupProcessor(QueueProcessor):  # pylint: disable=too-few-publi
         )
         solutions = return_clause._evaluate(fact_collection)  # pylint: disable=protected-access
 
+        def to_python(x):
+            if isinstance(x, Collection):
+                return [to_python(y) for y in x.values]
+            return x
+
         for solution in solutions:
             splat = [
-                solution.get(alias.name)
+                to_python(solution.get(alias.name))
                 for alias in return_clause.projection.lookups
             ]
             if any(isinstance(arg, NullResult) for arg in splat):

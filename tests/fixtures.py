@@ -705,11 +705,11 @@ def goldberg_with_aggregation_fixture():
 
     @goldberg.cypher_trigger(
         "MATCH (s:Square)-[r:contains]->(c:Circle) "
-        "WITH s.name AS square_name, s.length AS square_length, COLLECT(c.radius) AS radii "
-        "RETURN square_length, radii"
+        "WITH s.name AS square_name, s.side_length AS side_length, COLLECT(c.radius) AS radii "
+        "RETURN side_length, radii"
     )  # Should be an alias, not an ObjectAttributeLookup
     def aggregation_of_radii(
-        square_length, radii
+        side_length, radii
     ) -> VariableAttribute["s", "num_circles"]:  # type: ignore
         return len(radii)
 
