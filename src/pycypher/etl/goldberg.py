@@ -2,21 +2,32 @@
 Goldberg Class Documentation
 ============================
 
-The ``Goldberg`` class is the central orchestrator within the ``pycypher`` library. It manages the entire data processing pipeline, from ingesting raw data to executing triggers based on facts and constraints.
+The ``Goldberg`` class is the central orchestrator within the ``pycypher``
+library. It manages the entire data processing pipeline, from ingesting raw data
+to executing triggers based on facts and constraints.
 
 Overall Purpose
 ---------------
 
-The ``Goldberg`` class serves as the "brain" of the ``pycypher`` system. Its primary responsibilities include:
+The ``Goldberg`` class serves as the "brain" of the ``pycypher`` system. Its
+primary responsibilities include:
 
-1.  **Data Ingestion Management:** Handles the intake of raw data from various ``DataSource`` objects.
-2.  **Fact Generation Orchestration:** Coordinates the transformation of raw data into ``AtomicFact`` objects.
-3.  **Fact Storage and Retrieval:** Houses the ``FactCollection``, which is the central repository for storing and querying facts.
-4.  **Trigger Management:** Registers and manages ``CypherTrigger`` objects, which define reactive behaviors.
-5.  **Constraint Satisfaction:** Monitors facts and triggers, ensuring that constraints defined by the triggers are met.
-6.  **Trigger Execution:** Executes the associated function of a trigger when its constraints are satisfied.
-7.  **Pipeline Orchestration:** Manages the flow of data through multiple processing queues and threads.
-8.  **Monitoring:** Tracks the status of queues, threads, and data sources, providing performance insights.
+1.  **Data Ingestion Management:** Handles the intake of raw data from various
+``DataSource`` objects.
+2.  **Fact Generation Orchestration:** Coordinates the transformation of raw
+data into ``AtomicFact`` objects.
+3.  **Fact Storage and Retrieval:** Houses the ``FactCollection``, which is the
+central repository for storing and querying facts.
+4.  **Trigger Management:** Registers and manages ``CypherTrigger`` objects,
+which define reactive behaviors.
+5.  **Constraint Satisfaction:** Monitors facts and triggers, ensuring that
+constraints defined by the triggers are met.
+6.  **Trigger Execution:** Executes the associated function of a trigger when
+its constraints are satisfied.
+7.  **Pipeline Orchestration:** Manages the flow of data through multiple
+processing queues and threads.
+8.  **Monitoring:** Tracks the status of queues, threads, and data sources,
+providing performance insights.
 
 Key Components
 --------------
@@ -24,9 +35,11 @@ Key Components
 1.  **Data Sources (``data_sources``)**
 
     *   ``Goldberg`` manages a list of ``DataSource`` objects.
-    *   ``DataSource`` objects are responsible for reading raw data from external sources (e.g., CSV files, databases).
+    *   ``DataSource`` objects are responsible for reading raw data from
+        external sources (e.g., CSV files, databases).
     *   ``Goldberg`` starts each ``DataSource``'s loading thread.
-    *   When a data source is finished, it puts an ``EndOfData`` object on the ``raw_input_queue``.
+    *   When a data source is finished, it puts an ``EndOfData`` object on the
+        ``raw_input_queue``.
 
 2.  **Fact Collection (``fact_collection``)**
 
@@ -52,14 +65,19 @@ Key Components
         *   ``raw_input_queue``: Receives raw data rows from data sources.
         *   ``fact_generated_queue``: Receives new ``AtomicFact`` objects.
         *   ``check_fact_against_triggers_queue``: Receives facts to check against triggers.
-        *   ``triggered_lookup_processor_queue``: Receives information about which triggers need to be executed.
+        *   ``triggered_lookup_processor_queue``: Receives information about
+            which triggers need to be executed.
 
     *   It manages queue processors that operate on these queues:
 
         *   ``RawDataProcessor``: Converts raw data rows into facts and sends them to ``fact_generated_queue``.
-        *   ``FactGeneratedQueueProcessor``: Inserts new facts into the ``FactCollection``.
-        *   ``CheckFactAgainstTriggersQueueProcessor``: Checks new facts against trigger constraints and puts the matching trigger/sub information on the ``triggered_lookup_processor_queue``.
-        *   ``TriggeredLookupProcessor``: Executes the trigger and generates new facts as a result.
+        *   ``FactGeneratedQueueProcessor``: Inserts new facts into the
+            ``FactCollection``.
+        *   ``CheckFactAgainstTriggersQueueProcessor``: Checks new facts against
+             trigger constraints and puts the matching trigger/sub information on
+             the ``triggered_lookup_processor_queue``.
+        *   ``TriggeredLookupProcessor``: Executes the trigger and generates new
+            facts as a result.
 
 5. **Threads**
     * `Goldberg` is responsible for starting all the threads.
@@ -67,7 +85,8 @@ Key Components
 
 6.  **Monitoring (``monitor``, ``_monitor``)**
 
-    *   ``Goldberg`` has a monitoring system that tracks the status of queues, threads, and data sources.
+    *   ``Goldberg`` has a monitoring system that tracks the status of queues,
+        threads, and data sources.
     *   It provides performance insights (e.g., message rates, queue sizes).
     *   It also detects errors and halts the process if an exception occurs.
 
@@ -75,33 +94,50 @@ Workflow Overview
 -----------------
 
 1.  **Data Ingestion:** Data sources load data and send it to the ``raw_input_queue``.
-2.  **Raw Data Processing:** The ``RawDataProcessor`` reads data from ``raw_input_queue``, converts it into facts, and sends them to ``fact_generated_queue``.
-3.  **Fact Storage:** The ``FactGeneratedQueueProcessor`` adds the facts to the ``fact_collection`` and sends them to the ``check_fact_against_triggers_queue``.
-4.  **Constraint Checking:** The ``CheckFactAgainstTriggersQueueProcessor`` reads facts from ``check_fact_against_triggers_queue``, checks them against trigger constraints, and if there's a match, puts the trigger and sub information on the ``triggered_lookup_processor_queue``.
-5.  **Triggered Lookup Processor**: The ``TriggeredLookupProcessor`` reads the trigger information and sub information, looks up information about the nodes in the sub information, and runs the trigger's function on that information.
-6.  **Trigger Execution:** If a trigger's constraints are satisfied, its function is executed, potentially generating new facts.
-7.  **Repeat:** New facts may satisfy other triggers, leading to a chain reaction.
-8. **Monitoring**: `Goldberg`'s monitor thread keeps track of all of this, and prints out information on the queues, and threads.
+2.  **Raw Data Processing:** The ``RawDataProcessor`` reads data from
+``raw_input_queue``, converts it into facts, and sends them to
+``fact_generated_queue``.
+3.  **Fact Storage:** The ``FactGeneratedQueueProcessor`` adds the facts to the
+``fact_collection`` and sends them to the ``check_fact_against_triggers_queue``.
+4.  **Constraint Checking:** The ``CheckFactAgainstTriggersQueueProcessor``
+reads facts from ``check_fact_against_triggers_queue``, checks them against
+trigger constraints, and if there's a match, puts the trigger and sub
+information on the ``triggered_lookup_processor_queue``.
+5.  **Triggered Lookup Processor**: The ``TriggeredLookupProcessor`` reads the
+trigger information and sub information, looks up information about the nodes in
+the sub information, and runs the trigger's function on that information.
+6.  **Trigger Execution:** If a trigger's constraints are satisfied, its
+function is executed, potentially generating new facts.
+7.  **Repeat:** New facts may satisfy other triggers, leading to a chain
+reaction.
+8. **Monitoring**: `Goldberg`'s monitor thread keeps track of all of this, and
+prints out information on the queues, and threads.
 
 Key Methods
 -----------
 
-*   ``__init__``: Initializes the ``Goldberg`` object, creating queues, processors, and other components.
+*   ``__init__``: Initializes the ``Goldberg`` object, creating queues,
+    processors, and other components.
 *   ``__call__``: Starts the threads, and optionally blocks until they are finished.
 *   ``start_threads``: Starts all threads in the pipeline.
 *   ``halt``: Safely stops all threads.
-*   ``block_until_finished``: Blocks until all threads have finished. Re-raises exceptions from the threads.
+*   ``block_until_finished``: Blocks until all threads have finished. Re-raises
+    exceptions from the threads.
 *   ``monitor``, ``_monitor``: Monitors system status and prints information.
 *   ``attach_data_source``: Adds a ``DataSource`` to the pipeline.
 *   ``cypher_trigger``: Decorator for registering triggers.
 *   ``rows_by_node_label``: passes this call to the fact collection.
 *   ``node_label_attribute_inventory``: passes this call to the fact collection.
-*   ``__iadd__``: Enables the ``+=`` operator to add either a ``FactCollection`` or a ``DataSource``.
+*   ``__iadd__``: Enables the ``+=`` operator to add either a ``FactCollection``
+    or a ``DataSource``.
 
 Summary
 -------
 
-The ``Goldberg`` class is the central hub of the ``pycypher`` library. It orchestrates data processing, managing data ingestion, fact generation, fact storage, trigger management, and constraint satisfaction. It handles reactive behaviors within a graph-like data structure.
+The ``Goldberg`` class is the central hub of the ``pycypher`` library. It
+orchestrates data processing, managing data ingestion, fact generation, fact
+storage, trigger management, and constraint satisfaction. It handles reactive
+behaviors within a graph-like data structure.
 """
 
 from __future__ import annotations
@@ -110,305 +146,28 @@ import datetime
 import functools
 import inspect
 import queue
-import sys
 import threading
 import time
-import traceback
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from hashlib import md5
 from typing import Any, Dict, Generator, Iterable, List, Optional, Type
 
 from rich.console import Console
 from rich.table import Table
 
-from pycypher.core.node_classes import AliasedName, Collection
 from pycypher.etl.data_source import DataSource
-from pycypher.etl.fact import (
-    AtomicFact,
-    FactCollection,
-    FactNodeHasAttributeWithValue,
-)
+from pycypher.etl.fact import AtomicFact, FactCollection
 from pycypher.etl.message_types import EndOfData
-from pycypher.etl.query import NullResult, QueryValueOfNodeAttribute
+from pycypher.etl.queue_processor import (
+    CheckFactAgainstTriggersQueueProcessor,
+    FactGeneratedQueueProcessor,
+    RawDataProcessor,
+    TriggeredLookupProcessor,
+)
 from pycypher.etl.solver import Constraint
 from pycypher.etl.trigger import CypherTrigger
 from pycypher.util.config import MONITOR_LOOP_DELAY  # pylint: disable=no-name-in-module
 from pycypher.util.helpers import QueueGenerator
 from pycypher.util.logger import LOGGER
-
-
-@dataclass
-class SubTriggerPair:
-    """A pair of a sub and a trigger."""
-
-    sub: Dict[str, str]
-    trigger: CypherTrigger
-
-    def __hash__(self):
-        return hash(
-            (
-                tuple(self.sub),
-                self.trigger,
-            )
-        )
-
-
-class QueueProcessor(ABC):  # pylint: disable=too-few-public-methods,too-many-instance-attributes
-    """ABC that processes items from a queue and places the results onto another queue."""
-
-    def __init__(
-        self,
-        goldberg: Optional[Goldberg] = None,
-        incoming_queue: Optional[QueueGenerator] = None,
-        outgoing_queue: Optional[QueueGenerator] = None,
-        status_queue: Optional[queue.Queue] = None,
-    ) -> None:
-        self.goldberg = goldberg
-        self.processing_thread = threading.Thread(
-            target=self.process_queue, name=self.__class__.__name__
-        )
-        self.started = False
-        self.started_at = None
-        self.finished = False
-        self.finished_at = None
-        self.received_counter = 0
-        self.sent_counter = 0
-        self.incoming_queue = incoming_queue
-        self.outgoing_queue = outgoing_queue
-        self.status_queue = status_queue
-
-        if self.outgoing_queue:
-            self.outgoing_queue.incoming_queue_processors.append(self)
-
-    def process_queue(self) -> None:
-        """Process every item in the queue using the yield_items method."""
-        self.started = True
-        self.started_at = datetime.datetime.now()
-        for item in self.incoming_queue.yield_items():
-            self.received_counter += 1
-            try:
-                out = self._process_item_from_queue(item)
-            except Exception as e:  # pylint: disable=broad-except
-                exc_type, exc_value, exc_traceback = sys.exc_info()
-                formatted_traceback = traceback.format_exception(
-                    exc_type, exc_value, exc_traceback
-                )
-                formatted_traceback = "\n".join(
-                    [line.strip() for line in formatted_traceback]
-                )
-                error_msg = f"in thread: {threading.current_thread().name}\n"
-                error_msg += f"Error processing item {item}: {e}]\n"
-                error_msg += f"Traceback: {formatted_traceback}]\n"
-                LOGGER.error(error_msg)
-                self.status_queue.put(e)
-                continue
-            if not out:
-                continue
-            if not isinstance(out, list):
-                out = [out]
-            for out_item in out:
-                self.outgoing_queue.put(out_item)
-                self.sent_counter += 1
-        self.finished = True
-        self.finished_at = datetime.datetime.now()
-
-    @abstractmethod
-    def process_item_from_queue(self, item: Any) -> Any:
-        """Process an item from the queue."""
-
-    def _process_item_from_queue(self, item: Any) -> Any:
-        """Wrap the process call in case we want some logging."""
-        return self.process_item_from_queue(item)
-
-
-class RawDataProcessor(QueueProcessor):
-    """Runs in a thread to process raw data from all the DataSource objects."""
-
-    def process_item_from_queue(self, item) -> List[AtomicFact]:
-        """Process raw data from the ``raw_input_queue``, generate facts."""
-        data_source = item.data_source
-        row = item.row
-        out = []
-        for fact in data_source.generate_raw_facts_from_row(row):
-            out.append(fact)
-        return out
-
-
-class FactGeneratedQueueProcessor(QueueProcessor):  # pylint: disable=too-few-public-methods
-    """
-    Reads from the fact_generated_queue and processes the facts
-    by inserting them into the ``FactCollection``.
-    """
-
-    def process_item_from_queue(self, item: Any) -> None:
-        """Process new facts from the fact_generated_queue. Attaches the Golderg object to the fact."""
-        if item in self.goldberg.fact_collection:
-            LOGGER.debug("Fact %s already in collection", item)
-            return
-        item.goldberg = self.goldberg
-        self.goldberg.fact_collection.append(item)
-        # Put the fact in the queue to be checked for triggers
-        self.outgoing_queue.put(item)
-
-
-class CheckFactAgainstTriggersQueueProcessor(QueueProcessor):  # pylint: disable=too-few-public-methods
-    """
-    Reads from the check_fact_against_triggers_queue and processes the facts
-    by checking them against the triggers.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def process_item_from_queue(self, item: Any) -> None:
-        """Process new facts from the check_fact_against_triggers_queue."""
-
-        out = []
-        LOGGER.debug("Checking fact %s against triggers", item)
-        for _, trigger in self.goldberg.trigger_dict.items():
-            LOGGER.debug("Checking trigger %s", trigger)
-            for constraint in trigger.constraints:
-                LOGGER.debug(
-                    "Checking item: %s, constraint %s, trigger %s result: %s",
-                    item,
-                    constraint,
-                    trigger,
-                    item + constraint,
-                )
-
-                if sub := (item + constraint):
-                    LOGGER.debug("Fact %s matched a trigger", item)
-                    sub_trigger_pair = SubTriggerPair(sub=sub, trigger=trigger)
-                    out.append(sub_trigger_pair)
-        return out
-
-
-class TriggeredLookupProcessor(QueueProcessor):  # pylint: disable=too-few-public-methods
-    """
-    Reads from the check_fact_against_triggers_queue and processes the facts
-    by checking them against the triggers.
-    """
-
-    def process_item_from_queue(self, item: SubTriggerPair) -> List[Any]:
-        """Process new facts from the check_fact_against_triggers_queue."""
-        sub_trigger_obj = item
-        self.started = True
-        self.started_at = datetime.datetime.now()
-        self.received_counter += 1
-        variable_to_set = sub_trigger_obj.trigger.variable_set
-        # match_clause = (
-        #     sub_trigger_obj.trigger.cypher.parse_tree.cypher.match_clause
-        # )
-        # # match_clause.constraints.append(specific_object_constraint)
-        fact_collection = self.goldberg.fact_collection
-
-        return_clause = (
-            sub_trigger_obj.trigger.cypher.parse_tree.cypher.return_clause
-        )
-        solutions = return_clause._evaluate(fact_collection)  # pylint: disable=protected-access
-
-        def to_python(x):
-            if isinstance(x, Collection):
-                return [to_python(y) for y in x.values]
-            return x
-
-        for solution in solutions:
-            splat = [
-                to_python(solution.get(alias.name))
-                for alias in return_clause.projection.lookups
-            ]
-            if any(isinstance(arg, NullResult) for arg in splat):
-                LOGGER.debug("NullResult found in splat %s", splat)
-                continue
-            # Prevent call from happening if NullResult is present
-            computed_value = sub_trigger_obj.trigger.function(*splat)
-            sub_trigger_obj.trigger.call_counter += 1
-            target_attribute = sub_trigger_obj.trigger.attribute_set
-            # variable no longer present in solution because of alias renaming
-            # import pdb; pdb.set_trace()
-            # node_id = alias[name]
-            node_id = solution["__with_clause_projection__"][
-                "__match_solution__"
-            ][variable_to_set]
-            computed_fact = FactNodeHasAttributeWithValue(
-                node_id=node_id,
-                attribute=target_attribute,
-                value=computed_value,
-            )
-            LOGGER.debug(">>>>>>> Computed fact: %s", computed_fact)
-            self.goldberg.fact_generated_queue.put(computed_fact)
-        self.finished = True
-        self.finished_at = datetime.datetime.now()
-
-    def process_item_from_queue_bak(self, item: SubTriggerPair) -> List[Any]:
-        """Process new facts from the check_fact_against_triggers_queue."""
-        sub_trigger_obj = item
-        if isinstance(item, str):
-            import pdb
-
-            pdb.set_trace()
-        self.started = True
-        self.started_at = datetime.datetime.now()
-        self.received_counter += 1
-        variable = tuple(sub_trigger_obj.sub)[0]
-        node_id = sub_trigger_obj.sub[variable]  # pylint: disable=unused-variable
-        match_clause = (
-            sub_trigger_obj.trigger.cypher.parse_tree.cypher.match_clause
-        )
-        # match_clause.constraints.append(specific_object_constraint)
-        fact_collection = self.goldberg.fact_collection
-
-        solutions = match_clause.solutions(fact_collection)  # pylint: disable=unused-variable
-        return_clause = (
-            sub_trigger_obj.trigger.cypher.parse_tree.cypher.return_clause
-        )
-        aliases = return_clause.projection.lookups
-        for solution in solutions:
-            splat = []
-            for alias in aliases:
-                try:
-                    if hasattr(alias, "reference") and hasattr(
-                        alias.reference, "aggregation"
-                    ):  # pylint: disable=no-else-raise
-                        # TODO: Implement aggregation in RETURN statement
-                        raise NotImplementedError(
-                            "Aggregation in RETURN not yet implemented"
-                        )
-                    elif isinstance(alias, AliasedName):
-                        variable = alias.name
-                        node_id = solution[variable]
-                        attribute_value_query = QueryValueOfNodeAttribute(
-                            node_id=node_id,
-                            attribute=alias.name,
-                        )
-                    else:
-                        variable = alias.reference.object  # HERE
-                        node_id = solution[variable]
-                        attribute = alias.reference.attribute
-                        attribute_value_query = QueryValueOfNodeAttribute(
-                            node_id=node_id,
-                            attribute=attribute,
-                        )
-                except:
-                    import pdb
-
-                    pdb.set_trace()
-                attribute_value = fact_collection.query(attribute_value_query)
-                splat.append(attribute_value)
-            if any(isinstance(arg, NullResult) for arg in splat):
-                continue
-            computed_value = sub_trigger_obj.trigger.function(*splat)
-            sub_trigger_obj.trigger.call_counter += 1
-            target_attribute = sub_trigger_obj.trigger.attribute_set
-            computed_fact = FactNodeHasAttributeWithValue(
-                node_id=node_id,
-                attribute=target_attribute,
-                value=computed_value,
-            )
-            self.goldberg.fact_generated_queue.put(computed_fact)
-        self.finished = True
-        self.finished_at = datetime.datetime.now()
 
 
 class Goldberg:  # pylint: disable=too-many-instance-attributes

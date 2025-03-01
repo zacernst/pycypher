@@ -850,5 +850,3 @@ class FactCollection:
         inventory = list(self.node_label_attribute_inventory()[label])
         for node_id in self.nodes_with_label(label):
             yield self.attributes_for_specific_node(node_id, *inventory)
-
-

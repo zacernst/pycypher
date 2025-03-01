@@ -181,6 +181,7 @@ Use Cases
 *   **Data Migration:** It can be used to read data from legacy systems and migrate it to new systems.
 *   **Data Analysis:** It can be used to read data from files or streams for analysis in other tools.
 """
+
 from __future__ import annotations
 
 import csv
