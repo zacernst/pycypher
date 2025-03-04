@@ -277,6 +277,7 @@ def load_goldberg_config(path: str) -> Goldberg:
 
     for data_source_config in goldberg_config.data_sources:
         data_source = DataSource.from_uri(data_source_config.uri)
+        data_source.name = data_source_config.name
 
         for mapping_config in data_source_config.mappings:
             mapping = DataSourceMapping(

@@ -13,6 +13,7 @@ from pycypher.etl.data_source import (
     DataSource,
     DataSourceMapping,
     FixtureDataSource,
+    NewColumn,
 )
 from pycypher.etl.fact import (  # We might get rid of this class entirely
     FactCollection,
@@ -48,7 +49,7 @@ def raw_data_processor():
 def squares_csv_data_source():
     squares_csv = TEST_DATA_DIRECTORY / "squares.csv"
     squares_csv_uri = ensure_uri(squares_csv)
-    csv_data_source = DataSource.from_uri(squares_csv_uri)
+    csv_data_source = DataSource.from_uri(squares_csv_uri, name="squares_csv")
     return csv_data_source
 
 
@@ -712,6 +713,18 @@ def goldberg_with_aggregation_fixture():
         side_length, radii
     ) -> VariableAttribute["s", "num_circles"]:  # type: ignore
         return len(radii)
+
+    return goldberg
+
+
+@pytest.fixture
+def goldberg_with_city_state_fixture():
+    ingest_file = TEST_DATA_DIRECTORY / "ingest_city_state.yaml"
+    goldberg = load_goldberg_config(ingest_file)
+
+    @goldberg.new_column("city_table")
+    def city_state(city: str, state: str) -> NewColumn["city_state"]:
+        return "::".join([city, state])
 
     return goldberg
 

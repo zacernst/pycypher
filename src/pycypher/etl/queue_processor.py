@@ -1,7 +1,4 @@
 """
-Queue Processor Module
-======================
-
 This module defines the core components for processing items in a queue-based
 system within the pycypher library.
 

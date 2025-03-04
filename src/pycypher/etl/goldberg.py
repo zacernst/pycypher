@@ -148,6 +148,7 @@ import inspect
 import queue
 import threading
 import time
+from dataclasses import dataclass
 from hashlib import md5
 from typing import Any, Dict, Generator, Iterable, List, Optional, Type
 
@@ -166,8 +167,19 @@ from pycypher.etl.queue_processor import (
 from pycypher.etl.solver import Constraint
 from pycypher.etl.trigger import CypherTrigger
 from pycypher.util.config import MONITOR_LOOP_DELAY  # pylint: disable=no-name-in-module
+from pycypher.util.exceptions import UnknownDataSourceError
 from pycypher.util.helpers import QueueGenerator
 from pycypher.util.logger import LOGGER
+
+
+@dataclass
+class NewColumnConfig:
+    """Dataclass to hold the configuration for a new column."""
+
+    func: Any
+    parameter_names: List[str]
+    data_source_name: str
+    new_column_name: str
 
 
 class Goldberg:  # pylint: disable=too-many-instance-attributes
@@ -193,6 +205,7 @@ class Goldberg:  # pylint: disable=too-many-instance-attributes
         self.logging_level = logging_level  # Not so sure
         # No need for a fancy queue class here
         self.status_queue = status_queue or queue.Queue()
+        self.new_column_dict = {}
 
         self.raw_input_queue = self.queue_class(
             goldberg=self, name="RawInput", **self.queue_options
@@ -250,6 +263,12 @@ class Goldberg:  # pylint: disable=too-many-instance-attributes
         self.start_threads()
         if block:
             self.block_until_finished()
+
+    # def attach_new_columns_to_data_sources(self):
+    #     """Attach new columns to data sources."""
+    #     for new_column in self.new_column_dict.values():
+    #         data_source = self.data_source_by_name(new_column.data_source_name)
+    #         data_source.new_columns[new_column.new_column_name] = new_column
 
     def start_threads(self):
         """Start the threads."""
@@ -424,6 +443,14 @@ class Goldberg:  # pylint: disable=too-many-instance-attributes
         for trigger in self.trigger_dict.values():
             yield from trigger.constraints
 
+    def data_source_by_name(self, name: str) -> Optional[DataSource]:
+        """Return the data source with the given name."""
+        for data_source in self.data_sources:
+            if data_source.name == name:
+                return data_source
+        LOGGER.error("Data source %s not found", name)
+        raise ValueError(f"Data source {name} not found")
+
     @property
     def constraints(self) -> List[Constraint]:
         """Return all the constraints from the triggers."""
@@ -520,6 +547,60 @@ class Goldberg:  # pylint: disable=too-many-instance-attributes
             self.trigger_dict[
                 md5(trigger.cypher_string.encode()).hexdigest()
             ] = trigger
+
+            return wrapper
+
+        return decorator
+
+    def new_column(
+        self,
+        data_source_name: str,
+        attach_to_data_source: Optional[bool] = True,
+    ):
+        """Decorator that registers a function as creating a "new column" from a DataSource."""
+
+        def decorator(func):
+            @functools.wraps
+            def wrapper(*args):
+                result = func(*args)
+                return result
+
+            new_column_annotation = inspect.signature(func).return_annotation
+            if new_column_annotation is inspect.Signature.empty:
+                raise ValueError(
+                    "new_column_annotation function must have a return annotation."
+                )
+
+            if len(new_column_annotation.__args__) != 1:
+                raise ValueError(
+                    "Function must have a return annotation with exactly one argument."
+                )
+            new_column_name = new_column_annotation.__args__[0].__forward_arg__
+
+            parameters = inspect.signature(func).parameters
+            parameter_names = list(parameters.keys())
+            if not parameter_names:
+                raise ValueError(
+                    "Derived column functions require at least one parameter."
+                )
+
+            self.new_column_dict[new_column_name] = NewColumnConfig(
+                func=func,
+                parameter_names=parameter_names,
+                data_source_name=data_source_name,
+                new_column_name=new_column_name,
+            )
+
+            if attach_to_data_source:
+                if data_source_name not in [
+                    ds.name for ds in self.data_sources
+                ]:
+                    raise UnknownDataSourceError(
+                        f"Data source {data_source_name} not found in data sources"
+                    )
+                self.data_source_by_name(data_source_name).new_column_configs[
+                    new_column_name
+                ] = self.new_column_dict[new_column_name]
 
             return wrapper
 

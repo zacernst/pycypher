@@ -10,19 +10,19 @@ import queue
 import subprocess
 import threading
 import time
-from typing import Iterable
+from typing import Callable, Iterable
 from unittest.mock import Mock, patch
 
 import networkx as nx
 import pytest
 import rich  # pylint: disable=unused-import
-from fixtures import empty_goldberg  # pylint: disable=unused-import
-from fixtures import fact_collection_0  # pylint: disable=unused-import
-from fixtures import fact_collection_1  # pylint: disable=unused-import
-from fixtures import fact_collection_2  # pylint: disable=unused-import
-from fixtures import fact_collection_3  # pylint: disable=unused-import
-from fixtures import fact_collection_4  # pylint: disable=unused-import
 from fixtures import (
+    empty_goldberg,
+    fact_collection_0,
+    fact_collection_1,
+    fact_collection_2,
+    fact_collection_3,
+    fact_collection_4,
     fact_collection_5,
     fact_collection_6,
     fact_collection_7,
@@ -30,6 +30,7 @@ from fixtures import (
     fixture_0_data_source_mapping_list,
     fixture_data_source_0,
     goldberg_with_aggregation_fixture,
+    goldberg_with_city_state_fixture,
     goldberg_with_three_triggers,
     goldberg_with_trigger,
     goldberg_with_two_triggers,
@@ -88,6 +89,7 @@ from pycypher.etl.data_source import (
     CSVDataSource,
     DataSource,
     DataSourceMapping,
+    NewColumn,
 )
 from pycypher.etl.fact import (  # We might get rid of this class entirely
     FactCollection,
@@ -99,7 +101,7 @@ from pycypher.etl.fact import (  # We might get rid of this class entirely
     FactRelationshipHasSourceNode,
     FactRelationshipHasTargetNode,
 )
-from pycypher.etl.goldberg import Goldberg
+from pycypher.etl.goldberg import Goldberg, NewColumnConfig
 from pycypher.etl.message_types import EndOfData, RawDatum
 from pycypher.etl.query import (
     NullResult,
@@ -126,6 +128,7 @@ from pycypher.util.configuration import (  # pylint: disable=unused-import
 )
 from pycypher.util.exceptions import (  # pylint: disable=unused-import
     InvalidCastError,
+    UnknownDataSourceError,
     WrongCypherTypeError,
 )
 from pycypher.util.helpers import QueueGenerator, ensure_uri
@@ -4722,7 +4725,6 @@ def test_aggregation_trigger_in_goldberg_inserts_facts(
     )
 
 
-# @pytest.mark.skip  # Not done yet
 def test_with_clause_records_variables(fact_collection_squares_circles):
     cypher = "MATCH (s:Square)-[my_relationship:contains]->(c:Circle) WITH s.length AS length RETURN length"
     parser = CypherParser(cypher)
@@ -4735,3 +4737,83 @@ def test_with_clause_records_variables(fact_collection_squares_circles):
         {"length": Literal(2), "__match_solution__": {"s": "square_1"}},
     ]
     assert out == expected
+
+
+def test_new_column_annotation_inserts_to_goldberg_dict(empty_goldberg):
+    @empty_goldberg.new_column("imadatasource", attach_to_data_source=False)
+    def new_column(column1, column2) -> NewColumn["new_column"]:
+        return column1 + column2
+
+    assert "new_column" in empty_goldberg.new_column_dict
+
+
+def test_new_column_annotation_has_callable_function(empty_goldberg):
+    @empty_goldberg.new_column("imadatasource", attach_to_data_source=False)
+    def new_column(column1, column2) -> NewColumn["new_column"]:
+        return column1 + column2
+
+    assert isinstance(
+        empty_goldberg.new_column_dict["new_column"].func, Callable
+    )
+
+
+def test_new_column_annotation_has_parameters_from_function(empty_goldberg):
+    @empty_goldberg.new_column("imadatasource", attach_to_data_source=False)
+    def new_column(column1, column2) -> NewColumn["new_column"]:
+        return column1 + column2
+
+    assert empty_goldberg.new_column_dict["new_column"].parameter_names == [
+        "column1",
+        "column2",
+    ]
+
+
+def test_new_column_annotation_has_data_source_name(empty_goldberg):
+    @empty_goldberg.new_column("imadatasource", attach_to_data_source=False)
+    def new_column(column1, column2) -> NewColumn["new_column"]:
+        return column1 + column2
+
+    assert (
+        empty_goldberg.new_column_dict["new_column"].data_source_name
+        == "imadatasource"
+    )
+
+
+def test_new_column_annotation_return_value_required(empty_goldberg):
+    with pytest.raises(ValueError):
+
+        @empty_goldberg.new_column(
+            "imadatasource", attach_to_data_source=False
+        )
+        def new_column(column1, column2):
+            return 1
+
+
+def test_new_column_annotation_unknown_data_source_raises_error(
+    empty_goldberg,
+):
+    with pytest.raises(UnknownDataSourceError):
+
+        @empty_goldberg.new_column("imadatasource", attach_to_data_source=True)
+        def new_column(column1, column2) -> NewColumn["new_column"]:
+            return 1
+
+
+def test_new_column_config_created_on_data_source(
+    goldberg_with_city_state_fixture,
+):
+    assert "city_state" in goldberg_with_city_state_fixture.new_column_dict
+    assert isinstance(
+        goldberg_with_city_state_fixture.new_column_dict["city_state"],
+        NewColumnConfig,
+    )
+
+
+def test_ingestion_with_new_column_annotation(
+    goldberg_with_city_state_fixture,
+):
+    goldberg_with_city_state_fixture.start_threads()
+    goldberg_with_city_state_fixture.block_until_finished()
+    import pdb
+
+    pdb.set_trace()

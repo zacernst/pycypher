@@ -19,3 +19,7 @@ class WrongCypherTypeError(Exception):
 
 class InvalidCastError(Exception):
     """The Goldberg tries to do an impossible cast on a row value."""
+
+
+class UnknownDataSourceError(Exception):
+    """The Goldberg tries to access a data source that is not available."""

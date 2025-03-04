@@ -192,7 +192,7 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, Generator, List, Optional
+from typing import Any, Dict, Generator, List, Optional, Protocol, TypeVar
 from urllib.parse import ParseResult
 
 import pyarrow.parquet as pq
@@ -239,6 +239,17 @@ class RawDataThread(threading.Thread):
             LOGGER.debug("Thread %s is unblocking", self.data_source.name)
 
 
+ColumnName = TypeVar("ColumnName")
+
+
+class NewColumn(Protocol[ColumnName]):
+    """Protocol for column names."""
+
+    def __getitem__(self, *args, **kwargs) -> None: ...
+
+    def __setitem__(self, *args, **kwargs) -> None: ...
+
+
 class DataSource(ABC):  # pylint: disable=too-many-instance-attributes
     """
     A ``DataSource`` could be a CSV file, Kafka streaam, etc.
@@ -265,6 +276,7 @@ class DataSource(ABC):  # pylint: disable=too-many-instance-attributes
         self.finished_at = None
         self.halt = False
         self.schema = {}
+        self.new_column_configs: Dict[str, NewColumn] = {}
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name})"
@@ -328,7 +340,9 @@ class DataSource(ABC):  # pylint: disable=too-many-instance-attributes
         return self.attach_mapping(other)
 
     @classmethod
-    def from_uri(cls, uri: str | ParseResult) -> "DataSource":
+    def from_uri(
+        cls, uri: str | ParseResult, name: Optional[str] = None
+    ) -> "DataSource":
         """Factory for creating a ``DataSource`` from a URI."""
         dispatcher = {
             "csv": CSVDataSource,
@@ -336,7 +350,9 @@ class DataSource(ABC):  # pylint: disable=too-many-instance-attributes
         }
         uri = ensure_uri(uri)
         filename_extension = uri.path.split(".")[-1]
-        return dispatcher[filename_extension](uri)
+        data_source = dispatcher[filename_extension](uri)
+        data_source.name = name
+        return data_source
 
     def cast_row(self, row: Dict[str, Any]) -> Dict[str, Any]:
         """Cast the row to the schema."""
@@ -345,6 +361,13 @@ class DataSource(ABC):  # pylint: disable=too-many-instance-attributes
             for key, value in row.items()
         }
         return row
+
+    def add_new_columns(self, row: Dict[str, Any]) -> None:
+        """Add new columns to the row."""
+        for key, new_column_config in self.new_column_configs.items():
+            splat = [row[key] for key in new_column_config.parameter_names]
+            new_column_value = new_column_config.func(*splat)
+            row[key] = new_column_value
 
     def queue_rows(self) -> None:
         """Places the rows emitted by the ``DataSource`` onto the
@@ -357,6 +380,7 @@ class DataSource(ABC):  # pylint: disable=too-many-instance-attributes
         self.started_at = datetime.datetime.now()
         for row in self.rows():
             row = self.cast_row(row)
+            self.add_new_columns(row)
             self.received_counter += 1
             self.raw_input_queue.put(
                 RawDatum(data_source=self, row=row),

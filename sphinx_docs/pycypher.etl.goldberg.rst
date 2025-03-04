@@ -1,7 +1,4 @@
-﻿Goldberg
-========
-
-.. automodule:: pycypher.etl.goldberg
+﻿.. automodule:: pycypher.etl.goldberg
    :members:
 
    

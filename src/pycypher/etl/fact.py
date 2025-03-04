@@ -211,8 +211,6 @@ Module-Level Considerations
 *   **Efficiency:** The `FactCollection` class provides several specialized methods for querying and filtering facts, optimized for common use cases.
 * **Constraint Interaction:** The `__add__` method is used to determine if a `Constraint` is satisfied by a specific `Fact`.
 
-This documentation provides a detailed overview of the classes within the ``fact.py`` module. It should provide the necessary information to work with the `pycypher` library.
-
 """
 
 from __future__ import annotations
