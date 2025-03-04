@@ -10,6 +10,7 @@ API
    pycypher.etl.fact
    pycypher.etl.goldberg
    pycypher.etl.message_types
+   pycypher.etl.queue_processor
    pycypher.etl.solver
    pycypher.etl.trigger
    pycypher.shims.networkx_cypher
