@@ -4814,6 +4814,3 @@ def test_ingestion_with_new_column_annotation(
 ):
     goldberg_with_city_state_fixture.start_threads()
     goldberg_with_city_state_fixture.block_until_finished()
-    import pdb
-
-    pdb.set_trace()
