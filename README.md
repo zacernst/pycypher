@@ -27,17 +27,22 @@ Rather than thinking of your data as tables, columns, key-value pairs, graphs, o
 
 
 **What, Not How:** Instead of directly manipulating data structures (rows, columns, vertices, edges, documents...) imperatively, you declare "facts" about your data.
+
 **Atomic Units:** Facts are atomic, self-contained units of information. For example:
 * `FactNodeHasLabel("person_1", "Person")` declares that an entity referred to as "person_1" is of the type "Person."
 * `FactNodeHasAttributeWithValue("person_1", "name", "Alice")` declares that "person_1" has an attribute "name" with the value "Alice."
 * `FactRelationshipHasLabel("rel_1", "KNOWS")` states that the relationship with id rel_1 has the label "KNOWS."
 
 **System Manages State:** All your facts are stored in a `FactCollection` which acts like an embedded database. It is responsible for maintaining the consistency of your facts, looking up facts when necessary, and transforming your data into tables or other output formats. As a data engineer, your only jobs are to define your data sources and define the facts that are derived from those sources.
+
 **Customizable Data Store:** Depending on your use-case, you can use a simple in-memory `FactCollection` or a distributed, highly available key-value store, or anything else, just by changing a configuration value. No code changes are required, and it's not difficult to customize your own `FactCollection` if your requirements aren't met by the built-in options. 
+
 ## Data sources
 
 **YAML Configuration:** You declare how to ingest data from external sources (like CSV files or databases) using YAML configuration files.
+
 **Streaming and Batch are Identical:** Facts are streamed from data sources by the same process, regardless of whether they happen to come from a CSV file or a Kafka stream.
+
 **Mappings Define Relationships:** The mappings specify the connections between the external data structure and the facts that should be created.
 
 Example:
@@ -53,12 +58,15 @@ This declaration says:
 * All these entities should have the label `City`.
 
 **No Data Wrangling:** The logic for extracting data, handling different data types, and generating facts is managed by the `DataSource` class and its associated mappings. You just declare the relationships, not the parsing and conversion details.
+
 **Extend to New Data Sources:** A `DataSource` is simply a class that yields dictionaries. As such, it is usually trivial to write a custom `DataSource` class if your use-case isn't handled already.
 
 ## Define Reactions, Not Procedures
 
 **Triggers:** Instead of writing complex pipelines for transforming tables or documents, `pycypher` uses a "trigger" concept that simplifies your ETL significantly. A "trigger" is a simple function that says, "Whenever a condition `C` is met, perform this function and store the result as a new `Fact`." 
+
 **What Happens, Not How:** You define what should happen when specific conditions are met (e.g., a new fact is added) rather than how to detect these conditions or how to update the graph.
+
 **Recursive Updates:** Triggers generate facts, which in turn may cause other triggers to fire. In this way, you can generate new data that has multiple levels of dependencies without having to explicitly define an entire pipeline. 
 
 # Using `pycypher`
