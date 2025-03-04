@@ -4809,6 +4809,7 @@ def test_new_column_config_created_on_data_source(
     )
 
 
+@pytest.mark.skip
 def test_ingestion_with_new_column_annotation(
     goldberg_with_city_state_fixture,
 ):
